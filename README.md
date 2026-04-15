@@ -1,0 +1,173 @@
+# BinanceSquareBot
+
+自动爬取 ForesightNews 重要新闻，通过 LLM 生成币安广场推文并定时发布。
+
+## 🚀 功能特性
+
+- ✅ **每日增量爬取** - 每日自动爬取今日重要新闻，通过 SQLite 存储已处理 URL MD5 实现增量去重
+- ✅ **多账号支持** - 支持配置多个币安 API 密钥，每个 API 密钥都会遍历所有新闻发布
+- ✅ **AI 智能生成** - 使用 LangGraph 工作流，支持格式校验失败自动重试
+- ✅ **强制格式约束** - 字符数 101-799，话题标签 `#` ≤ 2，代币标签 `$` ≤ 2，符合币安广场规范
+- ✅ **定时自动运行** - GitHub Actions 每小时整点自动执行
+- ✅ **完整单元测试** - 所有模块覆盖单元测试，类型检查通过
+
+## 📋 环境要求
+
+- Python 3.11+
+- 币安广场 API 密钥 ([如何获取?](https://www.binance.com/zh-CN/square/developer/openapi))
+- OpenAI API 密钥 (或兼容 OpenAI 格式的 API)
+
+## 🛠️ 安装
+
+```bash
+# 克隆项目
+git clone https://github.com/your-username/BinanceSquareBot.git
+cd BinanceSquareBot
+
+# 安装依赖
+pip install .
+```
+
+## ⚙️ 配置
+
+复制环境配置示例文件：
+
+```bash
+cp .env_simple .env
+```
+
+编辑 `.env` 文件：
+
+```env
+# 币安API密钥列表 (JSON数组格式，支持多账号)
+BINANCE_API_KEYS=["your-api-key-1", "your-api-key-2"]
+
+# OpenAI API Key
+LLM_API_KEY=sk-xxx
+
+# 可选配置
+# LLM_MODEL=gpt-4o-mini
+# LLM_BASE_URL=https://api.openai.com/v1
+# MAX_RETRIES=3
+# MIN_CHARS=101
+# MAX_CHARS=799
+# MAX_HASHTAGS=2
+# MAX_MENTIONS=2
+```
+
+## 🚀 使用
+
+### 命令行运行
+
+```bash
+# 查看帮助
+binance-square-bot --help
+
+# 查看版本
+binance-square-bot --version
+
+# 试运行（只爬取和生成，不实际发布）
+binance-square-bot run --dry-run
+
+# 完整运行
+binance-square-bot run
+
+# 限制处理文章数量（用于测试）
+binance-square-bot run --limit 5
+
+# 清空已处理URL去重记录
+binance-square-bot clean
+```
+
+### GitHub Actions 定时运行
+
+项目已预置 `.github/workflows/run-bot.yml`，配置为每小时整点自动执行。
+
+启用步骤：
+1. 在 GitHub 仓库 Settings → Secrets and variables → Actions 添加 Secrets：
+   - `BINANCE_API_KEYS` - 你的币安API密钥列表（JSON格式）
+   - `LLM_API_KEY` - 你的OpenAI API密钥
+2. 推送代码后自动启用
+
+## 📁 项目结构
+
+```
+BinanceSquareBot/
+├── src/
+│   └── binance_square_bot/
+│       ├── __init__.py          # 版本信息
+│       ├── cli.py               # CLI入口 (Typer)
+│       ├── config.py            # 配置加载 (pydantic-settings)
+│       ├── models/
+│       │   ├── article.py       # Article数据模型
+│       │   └── tweet.py         # Tweet数据模型
+│       └── services/
+│           ├── storage.py       # SQLite存储去重
+│           ├── spider.py        # ForesightNews爬虫
+│           ├── generator.py     # AI推文生成 (LangGraph)
+│           └── publisher.py     # 币安广场发布
+├── tests/
+│   ├── test_storage.py          # 存储服务测试
+│   ├── test_generator.py        # 格式校验测试
+│   ├── test_publisher.py        # 发布服务测试
+│   ├── test_spider.py           # 爬虫测试
+│   └── live_test_spider.py      # 爬虫真实API测试
+├── .github/
+│   └── workflows/
+│       └── run-bot.yml          # GitHub Actions定时任务
+├── pyproject.toml               # 项目配置
+└── .env_simple                  # 环境配置示例
+```
+
+## 🧪 开发测试
+
+```bash
+# 运行单元测试
+python -m pytest tests/ -v
+
+# 运行类型检查
+mypy src/
+
+# 爬虫真实API测试
+python -m tests.live_test_spider
+```
+
+## 🔧 技术栈
+
+- [Typer](https://typer.tiangolo.com/) - 现代 CLI 框架
+- [Rich](https://rich.readthedocs.io/) - 美观终端输出
+- [LangGraph](https://langchain-ai.github.io/langgraph/) - AI 工作流编排
+- [pydantic-settings](https://docs.pydantic.dev/latest/) - 类型安全配置
+- [curl-cffi](https://github.com/yifeikong/curl_cffi) - 绕过反爬
+- [SQLite](https://www.sqlite.org/) - 嵌入式增量去重
+
+## 📝 工作流程
+
+```
+启动
+  ↓
+爬取 ForesightNews 今日重要新闻
+  ↓
+SQLite 去重过滤出新文章
+  ↓
+遍历 API 密钥
+  ↓
+遍历新文章
+  ↓
+LangGraph 生成推文:
+    ├─ 构建 Prompt
+    ├─ LLM 生成
+    ├─ 格式校验
+    ├─ 通过 → 发布
+    └─ 失败 → 重试 (最多 MAX_RETRIES 次)
+  ↓
+统计输出结果
+```
+
+## 📄 License
+
+MIT License
+
+## 🙏 致谢
+
+ Inspired by the need for automated crypto news sharing on Binance Square.

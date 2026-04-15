@@ -8,6 +8,7 @@
 
 import sqlite3
 import hashlib
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -39,6 +40,17 @@ class StorageService:
             # 创建唯一索引加速去重查询
             cursor.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_url_md5 ON processed_urls (url_md5)
+            """)
+
+            # 创建每日发布统计表，用于记录每个api_key每日发布数量
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS daily_publish_stats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    publish_date DATE NOT NULL,
+                    api_key_hash TEXT NOT NULL,
+                    publish_count INTEGER DEFAULT 0,
+                    UNIQUE(publish_date, api_key_hash)
+                )
             """)
             conn.commit()
 
@@ -85,3 +97,37 @@ class StorageService:
             cursor.execute("SELECT COUNT(*) FROM processed_urls")
             result = cursor.fetchone()
             return result[0] if result else 0
+
+    def _get_api_key_hash(self, api_key: str) -> str:
+        """对API密钥哈希后存储，不保存明文"""
+        return hashlib.md5(api_key.encode("utf-8")).hexdigest()
+
+    def get_today_publish_count(self, api_key: str) -> int:
+        """获取今日该API密钥已发布数量"""
+        today = datetime.now().date().isoformat()
+        api_key_hash = self._get_api_key_hash(api_key)
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT publish_count FROM daily_publish_stats
+                WHERE publish_date = ? AND api_key_hash = ?
+            """, (today, api_key_hash))
+            result = cursor.fetchone()
+            return result[0] if result else 0
+
+    def increment_today_publish_count(self, api_key: str) -> None:
+        """今日该API密钥发布计数+1"""
+        today = datetime.now().date().isoformat()
+        api_key_hash = self._get_api_key_hash(api_key)
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # 如果不存在则插入计数=1，存在则更新+1
+            cursor.execute("""
+                INSERT INTO daily_publish_stats (publish_date, api_key_hash, publish_count)
+                VALUES (?, ?, 1)
+                ON CONFLICT(publish_date, api_key_hash)
+                DO UPDATE SET publish_count = publish_count + 1
+            """, (today, api_key_hash))
+            conn.commit()

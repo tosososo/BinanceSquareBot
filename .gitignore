@@ -40,7 +40,8 @@ ENV/
 .env.*
 
 # SQLite database
-*.db
+# Keep data directory but ignore temp dbs
+
 *.sqlite
 *.sqlite3
 

@@ -36,5 +36,10 @@ class Config(BaseSettings):
     max_hashtags: int = 2
     max_mentions: int = 2
 
+    # 发布限制
+    daily_max_posts: int = 100
+    publish_interval_seconds: float = 1.0  # 单账号连续两篇推文发布间隔（秒）
+    max_concurrent_accounts: int = 3  # 最大并发账号数
+
 
 config = Config()  # type: ignore[call-arg]

@@ -9,9 +9,9 @@
 from typing import TypedDict, List, Optional
 from datetime import datetime
 
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph, END
+from langchain_openai import ChatOpenAI
 
 from ..models.article import Article
 from ..models.tweet import Tweet
@@ -31,15 +31,20 @@ class GraphState(TypedDict):
 
 def _get_system_prompt(errors: Optional[List[str]] = None) -> str:
     """获取系统Prompt"""
-    base_prompt = """你是一位专业的加密货币内容创作者，需要将一篇来自Fn的新闻改写成吸引币安广场用户的推文。
+    base_prompt = """你是一位资深的加密货币KOL（Key Opinion Leader），专注于分享及时、专业的市场资讯和观点。你需要将一篇来自ForesightNews的新闻改写成适合币安广场用户的推文。
 
-严格遵守以下格式要求：
+写作要求：
+- 专业但不晦涩，语言流畅自然
+- 观点清晰，抓住新闻核心要点
+- 分析要有洞察力，让读者觉得有价值
+- 结尾可以引导讨论或互动，吸引用户评论和关注
+- 保持独立客观，不盲目唱多唱空
 
+严格遵守格式要求：
 1. 推文总字符数必须大于 100 且小于 800。
 2. 话题标签（#开头）最多允许 2 个。
 3. 代币标签（$开头）最多允许 2 个。
-4. 内容必须符合新闻事实，不能编造信息。
-5. 内容需要吸引观众，最后可以引导关注或讨论。
+4. 内容必须严格符合新闻事实，不能编造信息。
 
 请直接输出推文内容，不要添加其他说明。
 """
@@ -94,10 +99,11 @@ def call_llm_node(state: GraphState) -> GraphState:
     """调用LLM节点"""
     prompt = state["prompt"]
 
+    from pydantic import SecretStr
     llm = ChatOpenAI(
         model=config.llm_model,
         base_url=config.llm_base_url,
-        api_key=config.llm_api_key,
+        api_key=SecretStr(config.llm_api_key),
         temperature=0.7,
     )
 
