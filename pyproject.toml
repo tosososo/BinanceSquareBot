@@ -27,9 +27,6 @@ dependencies = [
 [project.scripts]
 binance-square-bot = "binance_square_bot.cli:app"
 
-[tool.poetry]
-package-mode = "strict"
-
 [tool.ruff]
 line-length = 88
 target-version = "py311"
