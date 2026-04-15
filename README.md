@@ -81,13 +81,39 @@ binance-square-bot clean
 
 ### GitHub Actions 定时运行
 
-项目已预置 `.github/workflows/run-bot.yml`，配置为每小时整点自动执行。
+项目已预置 `.github/workflows/run-bot.yml`，配置为**每小时整点自动执行**。自动运行会爬取新闻、生成推文、发布，并自动提交数据库变更回你的仓库，保持去重状态持久化。
 
-启用步骤：
-1. 在 GitHub 仓库 Settings → Secrets and variables → Actions 添加 Secrets：
-   - `BINANCE_API_KEYS` - 你的币安API密钥列表（JSON格式）
-   - `LLM_API_KEY` - 你的OpenAI API密钥
-2. 推送代码后自动启用
+#### 配置步骤
+
+1. **在 GitHub 添加 Secrets**
+
+   进入你的 GitHub 仓库 → Settings → **Secrets and variables** → Actions → New repository secret，添加以下密钥：
+
+   | Secret Name | Value | Required |
+   |-------------|-------|----------|
+   | `BINANCE_API_KEYS` | 币安API密钥列表，JSON格式，例如：`["key1", "key2"]` | ✅ Required |
+   | `LLM_API_KEY` | OpenAI API 密钥（或兼容接口的密钥） | ✅ Required |
+   | `LLM_BASE_URL` | LLM API 地址（如使用第三方接口） | ⚙️ Optional |
+   | `LLM_MODEL` | LLM 模型名称 | ⚙️ Optional |
+
+2. **确认仓库权限**
+
+   当前 workflow 已配置 `permissions: contents: write`，对于大多数情况可以直接工作。如果仍然遇到推送权限错误 `403 Permission denied`，需要创建个人访问令牌 (PAT)：
+
+   - 创建 PAT：GitHub → Settings → Developer settings → Personal access tokens → Generate new token
+   - 勾选 `repo` 权限范围，生成 token
+   - 添加到仓库 Secrets：Name = `PAT`，Value = 你的 token
+   - 完成后即可正常推送数据库变更
+
+#### 工作流程
+
+- **触发时机**：每小时整点 (`0 * * * *`) + 支持手动触发 (Workflow dispatch)
+- **运行超时**：30 分钟（足够完成处理）
+- **冲突处理**：运行前自动拉取远程最新代码，处理分支冲突
+- **失败重试**：推送失败最多重试 5 次，提高成功率
+- **自动提交**：运行完成后自动提交 `data/processed_urls.db` 数据库变更
+
+推送代码后 GitHub Actions 自动启用。
 
 ## 📁 项目结构
 
