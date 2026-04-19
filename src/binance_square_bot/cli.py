@@ -235,48 +235,63 @@ def polymarket_research_run(
     markets = fetcher.fetch_all_simplified()
     console.print(f"✓ 获取完成，共 {len(markets)} 个市场")
 
-    best_market = filterer.select_best_market(markets)
-    if best_market is None:
+    top_markets = filterer.select_best_markets(markets)
+    if not top_markets:
         console.print("[yellow]✨ 没有符合条件的市场[/]")
         raise typer.Exit(0)
 
-    console.print(f"✓ 选中市场: {best_market.question}")
-    console.print(f"  YES 概率: {best_market.yes_price:.1%}, NO: {best_market.no_price:.1%}")
-    console.print(f"  交易量: {best_market.volume:.0f} USDC")
-
-    console.print("\n[blue]⚙️  正在生成研报...[/]")
-    tweet, error = generator.generate_with_retry(best_market)
-    if tweet is None:
-        console.print(f"[red]❌ 生成失败，已重试 {config.max_retries} 次: {error}[/]")
-        raise typer.Exit(1)
-
-    console.print("\n[green]✅ 生成的推文:[/]")
-    console.print("-" * 60)
-    console.print(tweet.content)
-    console.print("-" * 60)
-    console.print(f"\n长度: {len(tweet.content)} 字符")
+    console.print(f"✓ 选中 {len(top_markets)} 个市场:")
+    for i, market in enumerate(top_markets, 1):
+        console.print(f"  {i}. {market.question}")
+        console.print(f"      YES 概率: {market.yes_price:.1%}, NO: {market.no_price:.1%}")
+        console.print(f"      交易量: {market.volume:.0f} USDC")
 
     if dry_run:
-        console.print("\n[yellow]⚠️  试运行模式，不发布[/]")
+        console.print("\n[yellow]⚠️  试运行模式，只生成不发布[/]")
+
+    total_success = 0
+    total_attempts = 0
+
+    for idx, market in enumerate(top_markets, 1):
+        console.print(f"\n[blue]⚙️  正在生成第 {idx}/{len(top_markets)} 个市场研报: {market.question}[/]")
+        tweet, error = generator.generate_with_retry(market)
+        if tweet is None:
+            console.print(f"[red]❌ 生成失败，已重试 {config.max_retries} 次: {error}[/]")
+            total_attempts += 1
+            continue
+
+        console.print("\n[green]✅ 生成的推文:[/]")
+        console.print("-" * 60)
+        console.print(tweet.content)
+        console.print("-" * 60)
+        console.print(f"\n长度: {len(tweet.content)} 字符")
+
+        if dry_run:
+            total_attempts += 1
+            total_success += 1
+            continue
+
+        console.print("\n[blue]📤 正在发布到所有币安账号...[/]")
+        results = publisher.publish_tweet(tweet)
+        success_count = sum(1 for success, _ in results if success)
+        total_count = len(results)
+        console.print(f"发布结果: {success_count}/{total_count} 成功")
+        total_success += success_count
+        total_attempts += total_count
+
+        # Mark as published
+        storage.add_published_polymarket(market.condition_id, market.question)
+
+        # Add delay between posts
+        if idx < len(top_markets) and not dry_run:
+            import time
+            time.sleep(config.publish_interval_seconds * config.max_concurrent_accounts)
+
+    if dry_run:
+        console.print(f"\n[yellow]🏁 试运行完成，成功生成 {total_success}/{len(top_markets)} 个研报[/]")
         raise typer.Exit(0)
 
-    console.print("\n[blue]📤 正在发布到所有币安账号...[/]")
-    results = publisher.publish_tweet(tweet)
-
-    success_count = sum(1 for success, _ in results if success)
-    total_count = len(results)
-    console.print(f"发布结果: {success_count}/{total_count} 成功")
-
-    if success_count > 0:
-        storage.add_published_polymarket(best_market.condition_id, best_market.question)
-        console.print(f"[green]✅ 市场已标记为已发布: {best_market.condition_id}[/]")
-    else:
-        console.print("[red]❌ 没有成功发布，不标记为已发布[/]")
-        for _, msg in results:
-            console.print(f"  错误: {msg}")
-        raise typer.Exit(1)
-
-    console.print("[green]✅ 完成！[/]")
+    console.print(f"\n[green]🏁 全部完成，总计发布 {total_success}/{total_attempts} 成功[/]")
 
 
 @polymarket_app.command("scan")

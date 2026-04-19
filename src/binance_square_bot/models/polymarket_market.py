@@ -47,15 +47,15 @@ class PolymarketMarket(BaseModel):
             return self.tokens[1].price
         return 0.0
 
-    def is_probability_extreme(self, threshold: float = 0.2) -> bool:
-        """Check if probability is extreme (significant deviation opportunity).
-        True if YES price < threshold or YES price > (1 - threshold).
+    def is_probability_extreme(self, lower: float = 0.6, upper: float = 0.9) -> bool:
+        """Check if probability is in the interesting range (60%-90% YES).
+        True if lower < YES price < upper.
         """
         yes = self.yes_price
-        return yes < threshold or yes > (1.0 - threshold)
+        return lower < yes < upper
 
     def score(self, new_weight: float = 1.0, volume_weight: float = 0.0001,
-              extreme_bonus: float = 5.0) -> float:
+              interesting_bonus: float = 5.0) -> float:
         """Calculate selection score for this market.
         Higher score = more interesting to feature.
         """
@@ -68,7 +68,7 @@ class PolymarketMarket(BaseModel):
         # Higher volume gets higher score
         volume_score = (self.volume or 0.0) * volume_weight
 
-        # Bonus for extreme probability (deviation opportunity)
-        bonus = extreme_bonus if self.is_probability_extreme() else 0.0
+        # Bonus for interesting probability range (60%-90% YES)
+        bonus = interesting_bonus if self.is_probability_extreme() else 0.0
 
         return new_score + volume_score + bonus
