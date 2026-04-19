@@ -7,11 +7,13 @@
 """
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from binance_square_bot.models import PolymarketMarket, Tweet
 from binance_square_bot.services import (
     BinancePublisher,
     ForesightNewsSpider,
@@ -228,7 +230,6 @@ def polymarket_research_run(
     fetcher = PolymarketFetcher()
     published_ids = storage.get_all_published_condition_ids()
     filterer = PolymarketFilter(published_ids=published_ids)
-    generator = ResearchGenerator()
     publisher = BinancePublisher()
 
     console.print("[blue]🔍 正在获取 Polymarket 市场数据...[/]")
@@ -246,52 +247,70 @@ def polymarket_research_run(
         console.print(f"      YES 概率: {market.yes_price:.1%}, NO: {market.no_price:.1%}")
         console.print(f"      交易量: {market.volume:.0f} USDC")
 
-    if dry_run:
-        console.print("\n[yellow]⚠️  试运行模式，只生成不发布[/]")
+    # Define worker function for parallel generation
+    def generate_market_research(market: PolymarketMarket) -> tuple[PolymarketMarket, Tweet | None, str]:
+        """Worker function for parallel generation."""
+        generator = ResearchGenerator()
+        tweet, error = generator.generate_with_retry(market)
+        return (market, tweet, error)
 
+    # Execute parallel generation with ThreadPoolExecutor
+    console.print(f"\n[blue]⚡ 正在并发生成 {len(top_markets)} 个市场研报...[/blue]")
+    successful_generations: list[tuple[PolymarketMarket, Tweet]] = []
+    generation_errors = 0
+
+    with ThreadPoolExecutor(max_workers=config.max_concurrent_generations) as executor:
+        futures = [
+            executor.submit(generate_market_research, market)
+            for market in top_markets
+        ]
+        for future in futures:
+            try:
+                market, tweet, error = future.result()
+            except Exception as e:
+                # The entire future failed unexpectedly - count it as an error and continue
+                console.print(f"[red]❌ 生成任务异常: {str(e)}[/red]")
+                generation_errors += 1
+                continue
+            if tweet is None:
+                console.print(f"[red]❌ 生成失败: {market.question} - {error}[/red]")
+                generation_errors += 1
+                continue
+            console.print(f"\n[green]✅ 生成成功: {market.question} ({len(tweet.content)} 字符)[/]")
+            console.print("-" * 60)
+            console.print(tweet.content)
+            console.print("-" * 60)
+            successful_generations.append((market, tweet))
+
+    console.print(f"\n[blue]📊 生成完成: {len(successful_generations)} 成功, {generation_errors} 失败[/blue]")
+
+    if not successful_generations:
+        console.print("[yellow]✨ 没有成功生成的研报，退出[/yellow]")
+        raise typer.Exit(0)
+
+    if dry_run:
+        console.print(f"\n[yellow]🏁 试运行完成，成功生成 {len(successful_generations)} 个研报[/yellow]")
+        raise typer.Exit(0)
+
+    # Implement sequential publishing after generation
     total_success = 0
     total_attempts = 0
 
-    for idx, market in enumerate(top_markets, 1):
-        console.print(f"\n[blue]⚙️  正在生成第 {idx}/{len(top_markets)} 个市场研报: {market.question}[/]")
-        tweet, error = generator.generate_with_retry(market)
-        if tweet is None:
-            console.print(f"[red]❌ 生成失败，已重试 {config.max_retries} 次: {error}[/]")
-            total_attempts += 1
-            continue
-
-        console.print("\n[green]✅ 生成的推文:[/]")
-        console.print("-" * 60)
-        console.print(tweet.content)
-        console.print("-" * 60)
-        console.print(f"\n长度: {len(tweet.content)} 字符")
-
-        if dry_run:
-            total_attempts += 1
-            total_success += 1
-            continue
-
-        console.print("\n[blue]📤 正在发布到所有币安账号...[/]")
+    for idx, (market, tweet) in enumerate(successful_generations, 1):
+        console.print(f"\n[blue]📤 正在发布第 {idx}/{len(successful_generations)}: {market.question}[/blue]")
         results = publisher.publish_tweet(tweet)
         success_count = sum(1 for success, _ in results if success)
-        total_count = len(results)
-        console.print(f"发布结果: {success_count}/{total_count} 成功")
         total_success += success_count
-        total_attempts += total_count
+        total_attempts += len(results)
 
         # Mark as published
         storage.add_published_polymarket(market.condition_id, market.question)
 
         # Add delay between posts
-        if idx < len(top_markets) and not dry_run:
-            import time
+        if idx < len(successful_generations) and not dry_run:
             time.sleep(config.publish_interval_seconds * config.max_concurrent_accounts)
 
-    if dry_run:
-        console.print(f"\n[yellow]🏁 试运行完成，成功生成 {total_success}/{len(top_markets)} 个研报[/]")
-        raise typer.Exit(0)
-
-    console.print(f"\n[green]🏁 全部完成，总计发布 {total_success}/{total_attempts} 成功[/]")
+    console.print(f"\n[green]🏁 全部完成，总计发布 {total_success}/{total_attempts} 成功[/green]")
 
 
 @polymarket_app.command("scan")
