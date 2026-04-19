@@ -29,12 +29,22 @@ class PolymarketFetcher:
     """Fetches market data from Polymarket CLOB."""
 
     def __init__(self, host: str = None, chain_id: int = None):
-        self.host = host or config.POLYMARKET_HOST
-        self.chain_id = chain_id or config.POLYMARKET_CHAIN_ID
+        self.host = host or config.polymarket_host
+        self.chain_id = chain_id or config.polymarket_chain_id
         self.client = ClobClient(self.host, self.chain_id)
 
     def fetch_all_simplified(self) -> List[PolymarketMarket]:
-        """Fetch all simplified markets, handle pagination."""
+        """Fetch all available markets from Polymarket using the simplified API.
+
+        Handles pagination automatically to fetch all pages from the API.
+        Skips any invalid or malformed market entries during parsing.
+
+        Returns:
+            List[PolymarketMarket]: List of successfully parsed market objects.
+
+        Raises:
+            PolyException: If the API request fails at any point.
+        """
         all_markets: List[PolymarketMarket] = []
         next_cursor = ""
 
@@ -59,18 +69,29 @@ class PolymarketFetcher:
             return all_markets
 
         except PolyException as e:
-            logger.error(f"Polymarket API error: {e}")
+            logger.error(f"Failed to fetch markets from Polymarket API: {e}")
             raise
 
     def fetch_market_detail(self, condition_id: str) -> Optional[PolymarketMarket]:
-        """Fetch detailed information for a specific market."""
+        """Fetch detailed information for a specific market by condition ID.
+
+        Retrieves full details for a single market including token information.
+        Returns None if the market cannot be found or parsing fails.
+
+        Args:
+            condition_id: The unique condition ID of the market (hex string).
+
+        Returns:
+            Optional[PolymarketMarket]: Parsed market object if successful,
+                None if the API returns empty data, parsing fails, or API error occurs.
+        """
         try:
             detail = self.client.get_market(condition_id)
             if not detail:
                 return None
             return self._parse_simplified_item(detail)
         except PolyException as e:
-            logger.error(f"Failed to fetch market detail for {condition_id}: {e}")
+            logger.error(f"Failed to fetch market detail for condition_id={condition_id}: {e}")
             return None
 
     def _parse_simplified_item(self, item: dict) -> Optional[PolymarketMarket]:

@@ -42,8 +42,8 @@ class Config(BaseSettings):
     max_concurrent_accounts: int = 3  # 最大并发账号数
 
     # Polymarket API 配置
-    POLYMARKET_HOST: str = "https://clob.polymarket.com"
-    POLYMARKET_CHAIN_ID: int = 137  # Polygon
+    polymarket_host: str = "https://clob.polymarket.com"
+    polymarket_chain_id: int = 137  # Polygon
 
 
 config = Config()  # type: ignore[call-arg]
