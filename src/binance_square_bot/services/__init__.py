@@ -3,6 +3,7 @@ from .spider import FnSpiderService
 from .generator import TweetGenerator
 from .publisher import PublisherService
 from .polymarket_fetcher import PolymarketFetcher
+from .polymarket_filter import PolymarketFilter
 
 __all__ = [
     "StorageService",
@@ -10,5 +11,6 @@ __all__ = [
     "TweetGenerator",
     "PublisherService",
     "PolymarketFetcher",
+    "PolymarketFilter",
 ]
 
