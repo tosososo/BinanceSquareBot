@@ -52,6 +52,17 @@ class StorageService:
                     UNIQUE(publish_date, api_key_hash)
                 )
             """)
+
+            # Create published_polymarket table if not exists
+            cursor.execute("""
+CREATE TABLE IF NOT EXISTS published_polymarket (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    condition_id TEXT NOT NULL UNIQUE,
+    question TEXT NOT NULL,
+    published_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+            """)
             conn.commit()
 
     def _get_url_md5(self, url: str) -> str:
@@ -130,4 +141,37 @@ class StorageService:
                 ON CONFLICT(publish_date, api_key_hash)
                 DO UPDATE SET publish_count = publish_count + 1
             """, (today, api_key_hash))
+            conn.commit()
+
+    def is_polymarket_published(self, condition_id: str) -> bool:
+        """Check if a Polymarket has already been published."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM published_polymarket WHERE condition_id = ?",
+                (condition_id,)
+            )
+            return cursor.fetchone() is not None
+
+    def get_all_published_condition_ids(self) -> set:
+        """Get all published Polymarket condition IDs."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT condition_id FROM published_polymarket")
+            return {row[0] for row in cursor.fetchall()}
+
+    def add_published_polymarket(self, condition_id: str, question: str) -> None:
+        """Mark a Polymarket as published."""
+        import time
+        now = int(time.time())
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO published_polymarket
+                (condition_id, question, published_at, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (condition_id, question, now, now)
+            )
             conn.commit()
