@@ -16,10 +16,6 @@ from datetime import datetime
 
 from . import __version__
 from .config import config
-from .services.spider import FnSpiderService
-from .services.storage import StorageService
-from .services.generator import TweetGenerator
-from .services.publisher import PublisherService, PublishResult
 from binance_square_bot.services import (
     Storage,
     ForesightNewsSpider,
@@ -79,10 +75,10 @@ def run(
     console.print("[bold blue]🚀 启动 BinanceSquareBot[/bold blue]")
 
     # 初始化服务
-    storage = StorageService()
-    spider = FnSpiderService()
+    storage = Storage()
+    spider = ForesightNewsSpider()
     generator = TweetGenerator()
-    publisher = PublisherService()
+    publisher = BinancePublisher()
 
     # 爬取新闻
     console.print("[blue]📥 正在爬取Fn新闻列表...[/blue]")
@@ -111,106 +107,67 @@ def run(
         console.print(f"⚠️  限制处理数量: {limit}")
         new_articles = new_articles[:limit]
 
-    # 统计（线程安全保护）
+    # 统计
     total_attempted = 0
     generated_ok = 0
     published_ok = 0
     published_failed = 0
 
-    # 遍历API密钥
+    # 获取API密钥
     api_keys = config.binance_api_keys
     if not api_keys:
         console.print("[red]❌ 未配置BINANCE_API_KEYS[/red]")
         raise typer.Exit(code=1)
 
-    # 定义每个API密钥的处理worker
     from threading import Lock
     stats_lock = Lock()
 
-    def process_api_key(api_key_idx: int, api_key: str) -> Tuple[int, int, int, int]:
-        """处理单个API密钥，返回(local_attempted, local_generated, local_published, local_failed)"""
-        local_attempted = 0
-        local_generated = 0
-        local_published = 0
-        local_failed = 0
-
-        # 从数据库读取今日已发布计数
-        current_count = storage.get_today_publish_count(api_key)
+    # 逐个处理新文章
+    for article in new_articles:
         with stats_lock:
-            console.print(f"\n🔑 [blue]使用API密钥 #{api_key_idx + 1}[/blue] 今日已发布: {current_count}/{config.daily_max_posts}")
+            total_attempted += 1
+            console.print(f"\n🔄 [blue]处理文章: {article.title}[/blue]")
 
-        for article in new_articles:
-            # 检查每日发布限制
+        # 生成推文
+        tweet = generator.generate_tweet(article)
+
+        if not tweet.validation_passed:
+            errors = ", ".join(tweet.validation_errors)
+            console.print(f"⚠️  [yellow]格式校验失败: {errors}[/yellow]")
+            continue
+
+        generated_ok += 1
+        console.print(f"✓ 推文生成成功 ({len(tweet.content)} 字符)")
+
+        if dry_run:
+            console.print(f"⚠️  [yellow]试运行模式，跳过发布[/yellow]")
+            storage.mark_url_processed(article.url, processed=False)
+            continue
+
+        # 发布到所有API密钥（遵守每日限制）
+        results = publisher.publish_tweet(tweet)
+
+        # 更新计数和统计
+        for api_key_idx, (success, error_msg) in enumerate(results):
+            api_key = api_keys[api_key_idx]
+
+            # 检查是否已达到每日上限，不继续发布
+            current_count = storage.get_today_publish_count(api_key)
             if current_count >= config.daily_max_posts:
-                with stats_lock:
-                    console.print(f"⚠️  [yellow]已达到每日发布上限 {config.daily_max_posts} 篇，跳过剩余文章[/yellow]")
-                break
-
-            with stats_lock:
-                local_attempted += 1
-                console.print(f"\n🔄 [blue][API#{api_key_idx + 1}] 处理文章: {article.title}[/blue]")
-
-            # 生成推文
-            tweet = generator.generate_tweet(article)
-
-            if not tweet.validation_passed:
-                errors = ", ".join(tweet.validation_errors)
-                with stats_lock:
-                    console.print(f"⚠️  [yellow]格式校验失败: {errors}[/yellow]")
                 continue
 
-            with stats_lock:
-                local_generated += 1
-
-            with stats_lock:
-                console.print(f"✓ 推文生成成功 ({len(tweet.content)} 字符)")
-
-            if dry_run:
-                with stats_lock:
-                    console.print(f"⚠️  [yellow]试运行模式，跳过发布[/yellow]")
-                storage.mark_url_processed(article.url, processed=False)
-                continue
-
-            # 发布
-            result = publisher.publish_tweet(api_key, tweet)
-
-            if result.success:
-                with stats_lock:
-                    local_published += 1
-                current_count += 1
-                # 数据库计数+1
+            if success:
+                published_ok += 1
                 storage.increment_today_publish_count(api_key)
-                with stats_lock:
-                    console.print(f"✅ [green]发布成功: {result.tweet_url} ({current_count}/{config.daily_max_posts})[/green]")
+                console.print(f"✅ [green]发布成功 [API#{api_key_idx + 1}][/green] ({current_count + 1}/{config.daily_max_posts})[/green]")
                 storage.mark_url_processed(article.url, processed=True)
-
-                # 单账号发布频率限制：下一篇之前等待间隔
-                if current_count < config.daily_max_posts and len(new_articles) > 1:
-                    time.sleep(config.publish_interval_seconds)
             else:
-                with stats_lock:
-                    local_failed += 1
-                with stats_lock:
-                    console.print(f"❌ [red]发布失败: {result.error_message}[/red]")
+                published_failed += 1
+                console.print(f"❌ [red]发布失败 [API#{api_key_idx + 1}]: {error_msg}[/red]")
 
-        return (local_attempted, local_generated, local_published, local_failed)
-
-    # 使用线程池并发处理多个API密钥
-    max_workers = min(config.max_concurrent_accounts, len(api_keys))
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = []
-        for idx, api_key in enumerate(api_keys):
-            future = executor.submit(process_api_key, idx, api_key)
-            futures.append(future)
-
-        # 收集结果
-        for future in futures:
-            la, lg, lp, lf = future.result()
-            with stats_lock:
-                total_attempted += la
-                generated_ok += lg
-                published_ok += lp
-                published_failed += lf
+        # 发布间隔限制
+        if not dry_run and len(new_articles) > 1 and total_attempted < len(new_articles):
+            time.sleep(config.publish_interval_seconds)
 
     # 输出统计
     console.print("\n[bold green]✨ 执行完成[/bold green]")
@@ -244,7 +201,7 @@ def clean(
         if not confirm:
             raise typer.Exit()
 
-    storage = StorageService()
+    storage = Storage()
     storage.clean_all()
     console.print("[green]✅ 已清空所有已处理记录[/green]")
 
