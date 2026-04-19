@@ -5,7 +5,8 @@
 """
 
 from pydantic import BaseModel
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List
 
 
 class TokenInfo(BaseModel):
@@ -20,7 +21,7 @@ class PolymarketMarket(BaseModel):
     condition_id: str
     question: str
     description: Optional[str] = None
-    tokens: list[TokenInfo]
+    tokens: List[TokenInfo]
     volume: Optional[float] = 0.0
     created_at: int  # Unix timestamp
 
@@ -58,7 +59,6 @@ class PolymarketMarket(BaseModel):
         """Calculate selection score for this market.
         Higher score = more interesting to feature.
         """
-        from datetime import datetime
         # Newer markets get higher score
         current_ts = int(datetime.now().timestamp())
         age_hours = (current_ts - self.created_at) / 3600.0

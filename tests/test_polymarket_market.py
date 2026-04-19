@@ -1,6 +1,8 @@
 from binance_square_bot.models.polymarket_market import PolymarketMarket, TokenInfo
 
+
 def test_token_info_creation():
+    """Test that TokenInfo model creates correctly with all fields."""
     token = TokenInfo(
         token_id="test-id",
         outcome="YES",
@@ -10,7 +12,9 @@ def test_token_info_creation():
     assert token.outcome == "YES"
     assert token.price == 0.65
 
+
 def test_polymarket_market_creation():
+    """Test that PolymarketMarket creates correctly and basic properties work."""
     market = PolymarketMarket(
         condition_id="0x123",
         question="Will BTC hit 100k by end of 2025?",
@@ -28,7 +32,9 @@ def test_polymarket_market_creation():
     assert market.is_probability_extreme() is False  # 0.3 is not <0.2 or >0.8
     # 0.15 would be extreme → True
 
+
 def test_is_probability_extreme_cases():
+    """Test various cases for the is_probability_extreme method."""
     # YES price 0.15 is extreme (below 0.2 threshold)
     market = PolymarketMarket(
         condition_id="0x123",
@@ -65,7 +71,9 @@ def test_is_probability_extreme_cases():
     )
     assert market3.is_probability_extreme() is False
 
+
 def test_price_fallback_behavior():
+    """Test fallback price selection when tokens don't have explicit YES/NO labels."""
     # No explicit YES/no labels - use first and second tokens
     market = PolymarketMarket(
         condition_id="0x123",
@@ -79,7 +87,9 @@ def test_price_fallback_behavior():
     assert market.yes_price == 0.4
     assert market.no_price == 0.6
 
+
 def test_score_calculation():
+    """Test score calculation with different age, volume and probability conditions."""
     # Recently created market with high volume should get high score
     from datetime import datetime
     current_ts = int(datetime.now().timestamp())
