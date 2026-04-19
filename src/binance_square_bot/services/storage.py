@@ -8,9 +8,10 @@
 
 import sqlite3
 import hashlib
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set
 
 from ..config import config
 
@@ -53,15 +54,19 @@ class StorageService:
                 )
             """)
 
-            # Create published_polymarket table if not exists
+            # 创建已发布Polymarket记录表，如果不存在
             cursor.execute("""
-CREATE TABLE IF NOT EXISTS published_polymarket (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    condition_id TEXT NOT NULL UNIQUE,
-    question TEXT NOT NULL,
-    published_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-);
+                CREATE TABLE IF NOT EXISTS published_polymarket (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    condition_id TEXT NOT NULL UNIQUE,
+                    question TEXT NOT NULL,
+                    published_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # 创建唯一索引加速查询
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_condition_id ON published_polymarket (condition_id)
             """)
             conn.commit()
 
@@ -144,7 +149,7 @@ CREATE TABLE IF NOT EXISTS published_polymarket (
             conn.commit()
 
     def is_polymarket_published(self, condition_id: str) -> bool:
-        """Check if a Polymarket has already been published."""
+        """检查Polymarket是否已经发布"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -153,25 +158,23 @@ CREATE TABLE IF NOT EXISTS published_polymarket (
             )
             return cursor.fetchone() is not None
 
-    def get_all_published_condition_ids(self) -> set:
-        """Get all published Polymarket condition IDs."""
+    def get_all_published_condition_ids(self) -> Set[str]:
+        """获取所有已发布的Polymarket条件ID"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT condition_id FROM published_polymarket")
             return {row[0] for row in cursor.fetchall()}
 
     def add_published_polymarket(self, condition_id: str, question: str) -> None:
-        """Mark a Polymarket as published."""
-        import time
-        now = int(time.time())
+        """标记Polymarket为已发布"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
                 INSERT OR IGNORE INTO published_polymarket
                 (condition_id, question, published_at, created_at)
-                VALUES (?, ?, ?, ?)
+                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """,
-                (condition_id, question, now, now)
+                (condition_id, question)
             )
             conn.commit()
