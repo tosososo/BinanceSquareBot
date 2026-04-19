@@ -44,6 +44,7 @@ class Config(BaseSettings):
     daily_max_posts: int = 100
     publish_interval_seconds: float = 1.0  # 单账号连续两篇推文发布间隔（秒）
     max_concurrent_accounts: int = 3  # 最大并发账号数
+    max_concurrent_generations: int = 3  # 最大并发生成数（Polymarket研报生成）
 
     # Polymarket API 配置
     enable_polymarket: bool = True  # 是否启用 Polymarket 投资研报功能
