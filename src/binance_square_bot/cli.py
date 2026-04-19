@@ -20,6 +20,15 @@ from .services.spider import FnSpiderService
 from .services.storage import StorageService
 from .services.generator import TweetGenerator
 from .services.publisher import PublisherService, PublishResult
+from binance_square_bot.services import (
+    Storage,
+    ForesightNewsSpider,
+    TweetGenerator,
+    BinancePublisher,
+    PolymarketFetcher,
+    PolymarketFilter,
+    ResearchGenerator,
+)
 
 
 app = typer.Typer(
@@ -238,6 +247,105 @@ def clean(
     storage = StorageService()
     storage.clean_all()
     console.print("[green]✅ 已清空所有已处理记录[/green]")
+
+
+@app.command()
+def polymarket_research(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Only generate, don't publish"),
+    limit: int = typer.Option(None, "--limit", help="Limit number of markets to scan"),
+) -> None:
+    """Generate and publish Polymarket investment research tweet."""
+    from binance_square_bot.config import config
+    if not config.enable_polymarket:
+        typer.echo("Polymarket feature is disabled in config")
+        raise typer.Exit(1)
+
+    storage = Storage()
+    fetcher = PolymarketFetcher()
+    published_ids = storage.get_all_published_condition_ids()
+    filterer = PolymarketFilter(published_ids=published_ids)
+    generator = ResearchGenerator()
+    publisher = BinancePublisher()
+
+    typer.echo("Fetching Polymarket markets...")
+    markets = fetcher.fetch_all_simplified()
+    typer.echo(f"Fetched {len(markets)} markets")
+
+    best_market = filterer.select_best_market(markets)
+    if best_market is None:
+        typer.echo("No eligible markets found")
+        raise typer.Exit(0)
+
+    typer.echo(f"Selected market: {best_market.question}")
+    typer.echo(f"YES probability: {best_market.yes_price:.1%}, NO: {best_market.no_price:.1%}")
+    typer.echo(f"Volume: {best_market.volume:.0f} USDC")
+
+    typer.echo("\nGenerating research...")
+    tweet, error = generator.generate_with_retry(best_market)
+    if tweet is None:
+        typer.echo(f"Generation failed after {config.max_retries} retries: {error}")
+        raise typer.Exit(1)
+
+    typer.echo("\nGenerated tweet:")
+    typer.echo("-" * 60)
+    typer.echo(tweet.content)
+    typer.echo("-" * 60)
+    typer.echo(f"\nLength: {len(tweet.content)} chars")
+
+    if dry_run:
+        typer.echo("\nDry-run mode, not publishing")
+        raise typer.Exit(0)
+
+    typer.echo("\nPublishing to all Binance accounts...")
+    results = publisher.publish_tweet(tweet)
+
+    success_count = sum(1 for success, _ in results if success)
+    total_count = len(results)
+    typer.echo(f"Published: {success_count}/{total_count} successful")
+
+    if success_count > 0:
+        storage.add_published_polymarket(best_market.condition_id, best_market.question)
+        typer.echo(f"Market marked as published in storage: {best_market.condition_id}")
+    else:
+        typer.echo("No successful publishes, not marking as published")
+        for _, msg in results:
+            typer.echo(f"  Error: {msg}")
+        raise typer.Exit(1)
+
+    typer.echo("Done!")
+
+
+@app.command()
+def polymarket_scan(
+    top_n: int = typer.Option(5, "--top-n", help="Show top N candidates"),
+) -> None:
+    """Scan Polymarket markets and show top candidates (don't generate or publish)."""
+    from binance_square_bot.config import config
+    if not config.enable_polymarket:
+        typer.echo("Polymarket feature is disabled in config")
+        raise typer.Exit(1)
+
+    storage = Storage()
+    fetcher = PolymarketFetcher()
+    published_ids = storage.get_all_published_condition_ids()
+    filterer = PolymarketFilter(published_ids=published_ids)
+
+    typer.echo("Fetching Polymarket markets...")
+    markets = fetcher.fetch_all_simplified()
+    candidates = filterer.filter_min_volume(markets)
+    candidates = filterer.exclude_published(candidates)
+    candidates.sort(key=lambda m: m.score(), reverse=True)
+
+    typer.echo(f"\nTop {min(top_n, len(candidates))} candidates:\n")
+    for i, market in enumerate(candidates[:top_n], 1):
+        typer.echo(f"{i}. {market.question}")
+        typer.echo(f"   condition_id: {market.condition_id}")
+        typer.echo(f"   YES: {market.yes_price:.1%}, NO: {market.no_price:.1%}")
+        typer.echo(f"   Volume: {market.volume:.0f}, Score: {market.score():.2f}")
+        typer.echo(f"   Extreme: {'Yes' if market.is_probability_extreme() else 'No'}")
+        typer.echo("")
+
+    typer.echo(f"Total candidates: {len(candidates)} / {len(markets)}")
 
 
 if __name__ == "__main__":
