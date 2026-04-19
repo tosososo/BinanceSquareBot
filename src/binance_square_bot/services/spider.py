@@ -7,10 +7,10 @@
 """
 
 import base64
-import zlib
 import json
+import zlib
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any
 
 from curl_cffi import requests
 
@@ -30,7 +30,7 @@ class FnSpiderService:
             'Accept': 'application/json, text/plain, */*',
         })
 
-    def _decompress_data(self, compressed_data: str) -> Dict[str, Any]:
+    def _decompress_data(self, compressed_data: str) -> dict[str, Any]:
         """解压缩API返回的数据"""
         # 补全padding
         padding = 4 - len(compressed_data) % 4
@@ -44,10 +44,10 @@ class FnSpiderService:
         decompressed = zlib.decompress(decoded)
 
         # 解析JSON
-        result: Dict[str, Any] = json.loads(decompressed.decode('utf-8'))
+        result: dict[str, Any] = json.loads(decompressed.decode('utf-8'))
         return result
 
-    def fetch_news_list(self) -> List[Article]:
+    def fetch_news_list(self) -> list[Article]:
         """获取今日重要新闻列表
 
         Returns:
@@ -66,7 +66,7 @@ class FnSpiderService:
         else:
             decompressed = data.get('data', {})
 
-        articles: List[Article] = []
+        articles: list[Article] = []
 
         # dayNews API返回格式: json_data[0].get('news', [])
         if isinstance(decompressed, list) and len(decompressed) > 0:
@@ -78,7 +78,7 @@ class FnSpiderService:
 
         return articles
 
-    def _parse_article(self, item: Dict[str, Any]) -> Article | None:
+    def _parse_article(self, item: dict[str, Any]) -> Article | None:
         """解析单篇文章"""
         try:
             article_id = item.get('id')

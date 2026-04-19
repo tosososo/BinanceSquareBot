@@ -6,12 +6,10 @@
 @created-by fullstack-dev-workflow
 """
 
-import sqlite3
 import hashlib
-import time
+import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Set
 
 from ..config import config
 
@@ -19,7 +17,7 @@ from ..config import config
 class StorageService:
     """SQLite存储服务，用于增量去重"""
 
-    def __init__(self, db_path: Optional[str] = None) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         self.db_path = db_path or config.sqlite_db_path
         # 确保目录存在
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -158,7 +156,7 @@ class StorageService:
             )
             return cursor.fetchone() is not None
 
-    def get_all_published_condition_ids(self) -> Set[str]:
+    def get_all_published_condition_ids(self) -> set[str]:
         """获取所有已发布的Polymarket条件ID"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()

@@ -42,6 +42,11 @@ jobs:
         run: |
           poetry run binance-square-bot run
 
+      - name: Run Polymarket investment research generation and publishing
+        if: ${{ success() && vars.ENABLE_POLYMARKET != 'false' }}
+        run: |
+          poetry run binance-square-bot polymarket-research run
+
       - name: Commit and push if changes
         env:
           BRANCH_NAME: ${{ github.event.repository.default_branch }}

@@ -6,9 +6,9 @@
 @created-by fullstack-dev-workflow
 """
 
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+
+from pydantic import BaseModel
 
 
 class Article(BaseModel):
@@ -17,4 +17,4 @@ class Article(BaseModel):
     title: str
     url: str
     content: str
-    published_at: Optional[datetime] = None
+    published_at: datetime | None = None

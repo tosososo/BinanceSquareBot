@@ -4,25 +4,25 @@
 @created-by fullstack-dev-workflow
 """
 
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+
+from pydantic import BaseModel
 
 
 class TokenInfo(BaseModel):
     """Token information for a Polymarket outcome."""
     token_id: str
     outcome: str  # "YES" or "NO" or other outcome name
-    price: Optional[float] = None  # Current price 0-1
+    price: float | None = None  # Current price 0-1
 
 
 class PolymarketMarket(BaseModel):
     """Represents a Polymarket prediction market."""
     condition_id: str
     question: str
-    description: Optional[str] = None
-    tokens: List[TokenInfo]
-    volume: Optional[float] = 0.0
+    description: str | None = None
+    tokens: list[TokenInfo]
+    volume: float | None = 0.0
     created_at: int  # Unix timestamp
 
     @property

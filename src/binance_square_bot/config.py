@@ -6,8 +6,8 @@
 @created-by fullstack-dev-workflow
 """
 
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
 
 
 class Config(BaseSettings):
@@ -16,7 +16,7 @@ class Config(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # 币安API密钥列表，逗号分隔
-    binance_api_keys: List[str]
+    binance_api_keys: list[str]
 
     # Fn新闻列表URL
     fn_news_url: str = "https://news.fn.org/news"

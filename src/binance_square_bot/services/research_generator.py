@@ -3,16 +3,17 @@
 @description AI 投资研报推文生成，使用 LLM 分析 Polymarket 市场并生成符合币安广场格式的研报
 """
 import logging
-from typing import Tuple, Optional, List
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
+from binance_square_bot.config import config
 from binance_square_bot.models.polymarket_market import PolymarketMarket
 from binance_square_bot.models.tweet import Tweet
-from binance_square_bot.config import config
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def format_validation(
     """Validate generated content format constraints.
     Raises ValueError if validation fails.
     """
-    errors: List[str] = []
+    errors: list[str] = []
 
     # Check character count
     length = len(content)
@@ -50,9 +51,9 @@ def format_validation(
         raise ValueError(", ".join(errors))
 
 
-def retry_on_failure(func):
+def retry_on_failure(func: Callable[..., Any]) -> Callable[..., Any]:
     """Retry decorator for generation methods."""
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         self = args[0]
         for attempt in range(self.max_retries):
             try:
@@ -68,7 +69,7 @@ def retry_on_failure(func):
 class ResearchGenerator:
     """AI generates Polymarket investment research tweets."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.llm = ChatOpenAI(
             api_key=SecretStr(config.llm_api_key),
             base_url=config.llm_base_url,
@@ -81,7 +82,7 @@ class ResearchGenerator:
         self.max_hashtags = config.max_hashtags
         self.max_mentions = config.max_mentions
 
-    def build_prompt(self, market: PolymarketMarket, errors: Optional[List[str]] = None) -> str:
+    def build_prompt(self, market: PolymarketMarket, errors: list[str] | None = None) -> str:
         """Build the prompt for LLM."""
         description_section = f"\n描述: {market.description}" if market.description else ""
 
@@ -120,13 +121,23 @@ class ResearchGenerator:
 
         return base_prompt
 
-    def generate_research(self, market: PolymarketMarket, errors: Optional[List[str]] = None) -> Tweet:
+    def generate_research(self, market: PolymarketMarket, errors: list[str] | None = None) -> Tweet:
         """Generate research tweet for the given market.
         Raises ValueError if generation fails after retries.
         """
         prompt = self.build_prompt(market, errors)
         response = self.llm.invoke([HumanMessage(content=prompt)])
-        content = response.content.strip()
+        # response.content can be str | list[str | dict[Any, Any]] - ensure it's a string
+        content: str
+        if isinstance(response.content, str):
+            content = response.content.strip()
+        else:
+            # If it's a list, take the first string content or default to empty
+            content = ""
+            for item in response.content:
+                if isinstance(item, str):
+                    content = item.strip()
+                    break
 
         # Validate format
         format_validation(
@@ -145,10 +156,10 @@ class ResearchGenerator:
             validation_errors=[],
         )
 
-    def generate_with_retry(self, market: PolymarketMarket) -> Tuple[Optional[Tweet], str]:
+    def generate_with_retry(self, market: PolymarketMarket) -> tuple[Tweet | None, str]:
         """Generate with retry logic, returns (result, error_message)."""
         error = ""
-        validation_errors: List[str] = []
+        validation_errors: list[str] = []
         for attempt in range(self.max_retries):
             try:
                 tweet = self.generate_research(market, validation_errors if validation_errors else None)

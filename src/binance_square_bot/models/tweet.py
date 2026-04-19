@@ -6,9 +6,9 @@
 @created-by fullstack-dev-workflow
 """
 
-from pydantic import BaseModel
 from datetime import datetime
-from typing import List
+
+from pydantic import BaseModel
 
 
 class Tweet(BaseModel):
@@ -18,4 +18,4 @@ class Tweet(BaseModel):
     article_url: str
     generated_at: datetime
     validation_passed: bool
-    validation_errors: List[str] = []
+    validation_errors: list[str] = []

@@ -6,11 +6,10 @@
 @created-by fullstack-dev-workflow
 """
 
+
 import httpx
-from typing import Optional
 
 from ..models.tweet import Tweet
-
 
 API_URL = "https://www.binance.com/bapi/composite/v1/public/pgc/openApi/content/add"
 
@@ -21,7 +20,7 @@ class PublishResult:
     def __init__(
         self,
         success: bool,
-        tweet_id: Optional[str] = None,
+        tweet_id: str | None = None,
         error_message: str = "",
         api_key_index: int = 0,
     ) -> None:
@@ -31,7 +30,7 @@ class PublishResult:
         self.api_key_index = api_key_index
 
     @property
-    def tweet_url(self) -> Optional[str]:
+    def tweet_url(self) -> str | None:
         """生成推文URL"""
         if self.success and self.tweet_id:
             return f"https://www.binance.com/square/post/{self.tweet_id}"

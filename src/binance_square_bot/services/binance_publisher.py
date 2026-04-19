@@ -2,11 +2,11 @@
 @file binance_publisher.py
 @description Binance Publisher that publishes to all configured API keys
 """
-import httpx
-from typing import List, Tuple
 
-from ..models.tweet import Tweet
+import httpx
+
 from ..config import config
+from ..models.tweet import Tweet
 
 
 class BinancePublisher:
@@ -17,13 +17,13 @@ class BinancePublisher:
     def __init__(self) -> None:
         self.client = httpx.Client(timeout=30.0)
 
-    def publish_tweet(self, tweet: Tweet) -> List[Tuple[bool, str]]:
+    def publish_tweet(self, tweet: Tweet) -> list[tuple[bool, str]]:
         """Publish tweet to all configured API keys.
 
         Returns:
             List of (success, error_message) for each API key.
         """
-        results: List[Tuple[bool, str]] = []
+        results: list[tuple[bool, str]] = []
 
         for api_key in config.binance_api_keys:
             headers = {

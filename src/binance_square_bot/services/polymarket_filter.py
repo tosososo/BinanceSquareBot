@@ -5,12 +5,11 @@
 """
 
 import logging
-from typing import List, Optional, Set
 
-from binance_square_bot.models.polymarket_market import PolymarketMarket
 from binance_square_bot.config import config
+from binance_square_bot.models.polymarket_market import PolymarketMarket
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class PolymarketFilter:
@@ -18,21 +17,21 @@ class PolymarketFilter:
 
     def __init__(
         self,
-        min_volume: float = None,
-        published_ids: Optional[Set[str]] = None,
+        min_volume: float | None = None,
+        published_ids: set[str] | None = None,
     ):
         self.min_volume = min_volume if min_volume is not None else config.min_volume_threshold
         self.published_ids = published_ids or set()
 
-    def filter_min_volume(self, markets: List[PolymarketMarket]) -> List[PolymarketMarket]:
+    def filter_min_volume(self, markets: list[PolymarketMarket]) -> list[PolymarketMarket]:
         """Filter out markets with volume below minimum threshold."""
         return [m for m in markets if (m.volume or 0.0) >= self.min_volume]
 
-    def exclude_published(self, markets: List[PolymarketMarket]) -> List[PolymarketMarket]:
+    def exclude_published(self, markets: list[PolymarketMarket]) -> list[PolymarketMarket]:
         """Exclude already published markets."""
         return [m for m in markets if m.condition_id not in self.published_ids]
 
-    def select_best_market(self, markets: List[PolymarketMarket]) -> Optional[PolymarketMarket]:
+    def select_best_market(self, markets: list[PolymarketMarket]) -> PolymarketMarket | None:
         """Select the best market to feature based on scoring.
         Returns None if no markets meet criteria.
         """

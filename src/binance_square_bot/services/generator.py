@@ -6,16 +6,15 @@
 @created-by fullstack-dev-workflow
 """
 
-from typing import TypedDict, List, Optional
 from datetime import datetime
+from typing import TypedDict
 
-from langchain_core.prompts import ChatPromptTemplate
-from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph
 
+from ..config import config
 from ..models.article import Article
 from ..models.tweet import Tweet
-from ..config import config
 
 
 class GraphState(TypedDict):
@@ -23,13 +22,13 @@ class GraphState(TypedDict):
     article: Article
     prompt: str
     generated_text: str
-    validation_errors: List[str]
+    validation_errors: list[str]
     retry_count: int
     max_retries: int
     is_valid: bool
 
 
-def _get_system_prompt(errors: Optional[List[str]] = None) -> str:
+def _get_system_prompt(errors: list[str] | None = None) -> str:
     """获取系统Prompt"""
     base_prompt = """你是一位以深度洞察和逆向思维闻名的加密货币分析师KOL，粉丝关注你是为了看到**别人看不到的角度**。你需要将ForesightNews的新闻改写成**有观点、有深度、能引发讨论**的币安广场推文。
 
@@ -123,7 +122,7 @@ def call_llm_node(state: GraphState) -> GraphState:
 def validate_node(state: GraphState) -> GraphState:
     """格式校验节点"""
     text = state["generated_text"]
-    errors: List[str] = []
+    errors: list[str] = []
 
     # 检查字符数
     length = len(text)

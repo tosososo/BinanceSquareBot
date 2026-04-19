@@ -10,6 +10,7 @@
 - ✅ **强制格式约束** - 字符数 101-799，话题标签 `#` ≤ 2，代币标签 `$` ≤ 2，符合币安广场规范
 - ✅ **定时自动运行** - GitHub Actions 每小时整点自动执行
 - ✅ **完整单元测试** - 所有模块覆盖单元测试，类型检查通过
+- ✅ **Polymarket 投资研报** - 自动获取 Polymarket 最新市场，筛选热门新市场和概率偏离机会，AI 生成投资研报并发布
 
 ## 📋 环境要求
 
@@ -53,6 +54,12 @@ LLM_API_KEY=sk-xxx
 # MAX_CHARS=799
 # MAX_HASHTAGS=2
 # MAX_MENTIONS=2
+
+# Polymarket 投资研报配置（可选）
+# ENABLE_POLYMARKET=true
+# POLYMARKET_HOST=https://clob.polymarket.com
+# POLYMARKET_CHAIN_ID=137
+# MIN_VOLUME_THRESHOLD=1000
 ```
 
 ## 🚀 使用
@@ -77,6 +84,15 @@ binance-square-bot run --limit 5
 
 # 清空已处理URL去重记录
 binance-square-bot clean
+
+# 扫描 Polymarket 市场显示热门候选（不生成不发布）
+binance-square-bot polymarket-scan
+
+# 生成并发布 Polymarket 投资研报
+binance-square-bot polymarket-research run
+
+# 试运行（只获取筛选和生成，不发布）
+binance-square-bot polymarket-research run --dry-run
 ```
 
 ### GitHub Actions 定时运行
@@ -131,7 +147,10 @@ BinanceSquareBot/
 │           ├── storage.py       # SQLite存储去重
 │           ├── spider.py        # ForesightNews爬虫
 │           ├── generator.py     # AI推文生成 (LangGraph)
-│           └── publisher.py     # 币安广场发布
+│           ├── polymarket_fetcher.py       # Polymarket 数据获取
+│           ├── polymarket_filter.py        # Polymarket 市场筛选打分
+│           ├── research_generator.py      # Polymarket 投资研报生成
+│           └── binance_publisher.py      # 币安广场发布服务（多API密钥）
 ├── tests/
 │   ├── test_storage.py          # 存储服务测试
 │   ├── test_generator.py        # 格式校验测试

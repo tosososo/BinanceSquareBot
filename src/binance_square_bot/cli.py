@@ -6,26 +6,24 @@
 @created-by fullstack-dev-workflow
 """
 
-from typing import Optional, Tuple
 import time
+
 import typer
-from concurrent.futures import ThreadPoolExecutor
 from rich.console import Console
 from rich.table import Table
-from datetime import datetime
 
-from . import __version__
-from .config import config
 from binance_square_bot.services import (
-    Storage,
-    ForesightNewsSpider,
-    TweetGenerator,
     BinancePublisher,
+    ForesightNewsSpider,
     PolymarketFetcher,
     PolymarketFilter,
     ResearchGenerator,
+    Storage,
+    TweetGenerator,
 )
 
+from . import __version__
+from .config import config
 
 app = typer.Typer(
     name="binance-square-bot",
@@ -34,6 +32,13 @@ app = typer.Typer(
 )
 
 console = Console()
+
+# Polymarket research subcommand group
+polymarket_app = typer.Typer(
+    help="Polymarket 投资研报生成功能",
+    add_completion=False,
+)
+app.add_typer(polymarket_app, name="polymarket-research")
 
 
 def version_callback(value: bool) -> None:
@@ -44,7 +49,7 @@ def version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None,
         "--version",
         "-v",
@@ -64,7 +69,7 @@ def run(
         "--dry-run",
         help="试运行模式：只爬取和生成，不实际发布",
     ),
-    limit: Optional[int] = typer.Option(
+    limit: int | None = typer.Option(
         None,
         "--limit",
         help="限制处理文章数量（用于测试）",
@@ -86,7 +91,7 @@ def run(
         articles = spider.fetch_news_list()
     except Exception as e:
         console.print(f"[red]❌ 爬取失败: {str(e)}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     console.print(f"✓ 爬取完成，共 {len(articles)} 篇文章")
 
@@ -140,7 +145,7 @@ def run(
         console.print(f"✓ 推文生成成功 ({len(tweet.content)} 字符)")
 
         if dry_run:
-            console.print(f"⚠️  [yellow]试运行模式，跳过发布[/yellow]")
+            console.print("⚠️  [yellow]试运行模式，跳过发布[/yellow]")
             storage.mark_url_processed(article.url, processed=False)
             continue
 
@@ -206,10 +211,9 @@ def clean(
     console.print("[green]✅ 已清空所有已处理记录[/green]")
 
 
-@app.command()
-def polymarket_research(
+@polymarket_app.command("run")
+def polymarket_research_run(
     dry_run: bool = typer.Option(False, "--dry-run", help="只生成，不发布"),
-    limit: Optional[int] = typer.Option(None, "--limit", help="限制扫描市场数量"),
 ) -> None:
     """生成并发布 Polymarket 投资研报推文。"""
     if not config.enable_polymarket:
@@ -275,11 +279,11 @@ def polymarket_research(
     console.print("[green]✅ 完成！[/green]")
 
 
-@app.command()
-def polymarket_scan(
+@polymarket_app.command("scan")
+def polymarket_research_scan(
     top_n: int = typer.Option(5, "--top-n", help="显示前 N 个候选市场"),
 ) -> None:
-    """扫描 Polymarket 市场，展示热门候选（不生成不发布）。"""
+    """查看当前筛选出的最佳市场，不生成不发布。"""
     if not config.enable_polymarket:
         console.print("[red]❌ Polymarket 功能在配置中已禁用[/red]")
         raise typer.Exit(1)
@@ -305,6 +309,16 @@ def polymarket_scan(
         console.print("")
 
     console.print(f"总计候选市场: {len(candidates)} / {len(markets)}")
+
+
+# Keep top-level polymarket-scan for backward compatibility
+@app.command("polymarket-scan")
+def polymarket_scan_compat(
+    top_n: int = typer.Option(5, "--top-n", help="显示前 N 个候选市场"),
+) -> None:
+    """扫描 Polymarket 市场，展示热门候选（不生成不发布）。"""
+    # Delegate to the subcommand implementation
+    polymarket_research_scan(top_n)
 
 
 if __name__ == "__main__":
