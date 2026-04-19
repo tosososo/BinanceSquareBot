@@ -41,5 +41,9 @@ class Config(BaseSettings):
     publish_interval_seconds: float = 1.0  # 单账号连续两篇推文发布间隔（秒）
     max_concurrent_accounts: int = 3  # 最大并发账号数
 
+    # Polymarket API 配置
+    POLYMARKET_HOST: str = "https://clob.polymarket.com"
+    POLYMARKET_CHAIN_ID: int = 137  # Polygon
+
 
 config = Config()  # type: ignore[call-arg]
