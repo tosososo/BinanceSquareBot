@@ -32,7 +32,20 @@ jobs:
       - name: Create data directory
         run: |
           mkdir -p data
-
+      - name: Run Polymarket investment research generation and publishing
+        if: ${{ success() && vars.ENABLE_POLYMARKET != 'false' }}
+        env:
+          BINANCE_API_KEYS: ${{ secrets.BINANCE_API_KEYS }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          ENABLE_POLYMARKET: ${{ secrets.ENABLE_POLYMARKET }}
+          POLYMARKET_HOST: ${{ secrets.POLYMARKET_HOST }}
+          POLYMARKET_CHAIN_ID: ${{ secrets.POLYMARKET_CHAIN_ID }}
+          MIN_VOLUME_THRESHOLD: ${{ secrets.MIN_VOLUME_THRESHOLD }}
+        run: |
+          poetry run binance-square-bot polymarket-research run
+          
       - name: Run bot
         env:
           BINANCE_API_KEYS: ${{ secrets.BINANCE_API_KEYS }}
@@ -42,10 +55,7 @@ jobs:
         run: |
           poetry run binance-square-bot run
 
-      - name: Run Polymarket investment research generation and publishing
-        if: ${{ success() && vars.ENABLE_POLYMARKET != 'false' }}
-        run: |
-          poetry run binance-square-bot polymarket-research run
+      
 
       - name: Commit and push if changes
         env:
