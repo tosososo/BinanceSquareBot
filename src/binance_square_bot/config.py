@@ -13,7 +13,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Config(BaseSettings):
     """应用配置，从环境变量加载"""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,  # Ignore empty environment variables, use default values
+    )
 
     # 币安API密钥列表，逗号分隔
     binance_api_keys: list[str]
