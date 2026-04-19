@@ -86,11 +86,11 @@ def run(
     publisher = BinancePublisher()
 
     # 爬取新闻
-    console.print("[blue]📥 正在爬取Fn新闻列表...[/blue]")
+    console.print("[blue]📥 正在爬取Fn新闻列表...[/]")
     try:
         articles = spider.fetch_news_list()
     except Exception as e:
-        console.print(f"[red]❌ 爬取失败: {str(e)}[/red]")
+        console.print(f"[red]❌ 爬取失败: {str(e)}[/]")
         raise typer.Exit(code=1) from e
 
     console.print(f"✓ 爬取完成，共 {len(articles)} 篇文章")
@@ -104,7 +104,7 @@ def run(
     console.print(f"✓ 去重完成，{len(new_articles)} 篇新文章待处理")
 
     if len(new_articles) == 0:
-        console.print("[green]✨ 没有新文章，退出[/green]")
+        console.print("[green]✨ 没有新文章，退出[/]")
         raise typer.Exit()
 
     # 限制处理数量
@@ -121,7 +121,7 @@ def run(
     # 获取API密钥
     api_keys = config.binance_api_keys
     if not api_keys:
-        console.print("[red]❌ 未配置BINANCE_API_KEYS[/red]")
+        console.print("[red]❌ 未配置BINANCE_API_KEYS[/]")
         raise typer.Exit(code=1)
 
     from threading import Lock
@@ -131,21 +131,21 @@ def run(
     for article in new_articles:
         with stats_lock:
             total_attempted += 1
-            console.print(f"\n🔄 [blue]处理文章: {article.title}[/blue]")
+            console.print(f"\n🔄 [blue]处理文章: {article.title}[/]")
 
         # 生成推文
         tweet = generator.generate_tweet(article)
 
         if not tweet.validation_passed:
             errors = ", ".join(tweet.validation_errors)
-            console.print(f"⚠️  [yellow]格式校验失败: {errors}[/yellow]")
+            console.print(f"⚠️  [yellow]格式校验失败: {errors}[/]")
             continue
 
         generated_ok += 1
         console.print(f"✓ 推文生成成功 ({len(tweet.content)} 字符)")
 
         if dry_run:
-            console.print("⚠️  [yellow]试运行模式，跳过发布[/yellow]")
+            console.print("⚠️  [yellow]试运行模式，跳过发布[/]")
             storage.mark_url_processed(article.url, processed=False)
             continue
 
@@ -164,11 +164,11 @@ def run(
             if success:
                 published_ok += 1
                 storage.increment_today_publish_count(api_key)
-                console.print(f"✅ [green]发布成功 [API#{api_key_idx + 1}][/green] ({current_count + 1}/{config.daily_max_posts})[/green]")
+                console.print(f"✅ [green]发布成功 [API#{api_key_idx + 1}] ({current_count + 1}/{config.daily_max_posts})[/]")
                 storage.mark_url_processed(article.url, processed=True)
             else:
                 published_failed += 1
-                console.print(f"❌ [red]发布失败 [API#{api_key_idx + 1}]: {error_msg}[/red]")
+                console.print(f"❌ [red]发布失败 [API#{api_key_idx + 1}]: {error_msg}[/]")
 
         # 发布间隔限制
         if not dry_run and len(new_articles) > 1 and total_attempted < len(new_articles):
@@ -208,7 +208,7 @@ def clean(
 
     storage = Storage()
     storage.clean_all()
-    console.print("[green]✅ 已清空所有已处理记录[/green]")
+    console.print("[green]✅ 已清空所有已处理记录[/]")
 
 
 @polymarket_app.command("run")
@@ -217,11 +217,11 @@ def polymarket_research_run(
 ) -> None:
     """生成并发布 Polymarket 投资研报推文。"""
     if not config.enable_polymarket:
-        console.print("[red]❌ Polymarket 功能在配置中已禁用[/red]")
+        console.print("[red]❌ Polymarket 功能在配置中已禁用[/]")
         raise typer.Exit(1)
 
     if not config.binance_api_keys:
-        console.print("[red]❌ 未配置BINANCE_API_KEYS[/red]")
+        console.print("[red]❌ 未配置BINANCE_API_KEYS[/]")
         raise typer.Exit(1)
 
     storage = Storage()
@@ -231,36 +231,36 @@ def polymarket_research_run(
     generator = ResearchGenerator()
     publisher = BinancePublisher()
 
-    console.print("[blue]🔍 正在获取 Polymarket 市场数据...[/blue]")
+    console.print("[blue]🔍 正在获取 Polymarket 市场数据...[/]")
     markets = fetcher.fetch_all_simplified()
     console.print(f"✓ 获取完成，共 {len(markets)} 个市场")
 
     best_market = filterer.select_best_market(markets)
     if best_market is None:
-        console.print("[yellow]✨ 没有符合条件的市场[/yellow]")
+        console.print("[yellow]✨ 没有符合条件的市场[/]")
         raise typer.Exit(0)
 
     console.print(f"✓ 选中市场: {best_market.question}")
     console.print(f"  YES 概率: {best_market.yes_price:.1%}, NO: {best_market.no_price:.1%}")
     console.print(f"  交易量: {best_market.volume:.0f} USDC")
 
-    console.print("\n[blue]⚙️  正在生成研报...[/blue]")
+    console.print("\n[blue]⚙️  正在生成研报...[/]")
     tweet, error = generator.generate_with_retry(best_market)
     if tweet is None:
-        console.print(f"[red]❌ 生成失败，已重试 {config.max_retries} 次: {error}[/red]")
+        console.print(f"[red]❌ 生成失败，已重试 {config.max_retries} 次: {error}[/]")
         raise typer.Exit(1)
 
-    console.print("\n[green]✅ 生成的推文:[/green]")
+    console.print("\n[green]✅ 生成的推文:[/]")
     console.print("-" * 60)
     console.print(tweet.content)
     console.print("-" * 60)
     console.print(f"\n长度: {len(tweet.content)} 字符")
 
     if dry_run:
-        console.print("\n[yellow]⚠️  试运行模式，不发布[/yellow]")
+        console.print("\n[yellow]⚠️  试运行模式，不发布[/]")
         raise typer.Exit(0)
 
-    console.print("\n[blue]📤 正在发布到所有币安账号...[/blue]")
+    console.print("\n[blue]📤 正在发布到所有币安账号...[/]")
     results = publisher.publish_tweet(tweet)
 
     success_count = sum(1 for success, _ in results if success)
@@ -269,14 +269,14 @@ def polymarket_research_run(
 
     if success_count > 0:
         storage.add_published_polymarket(best_market.condition_id, best_market.question)
-        console.print(f"[green]✅ 市场已标记为已发布: {best_market.condition_id}[/green]")
+        console.print(f"[green]✅ 市场已标记为已发布: {best_market.condition_id}[/]")
     else:
-        console.print("[red]❌ 没有成功发布，不标记为已发布[/red]")
+        console.print("[red]❌ 没有成功发布，不标记为已发布[/]")
         for _, msg in results:
             console.print(f"  错误: {msg}")
         raise typer.Exit(1)
 
-    console.print("[green]✅ 完成！[/green]")
+    console.print("[green]✅ 完成！[/]")
 
 
 @polymarket_app.command("scan")
@@ -285,7 +285,7 @@ def polymarket_research_scan(
 ) -> None:
     """查看当前筛选出的最佳市场，不生成不发布。"""
     if not config.enable_polymarket:
-        console.print("[red]❌ Polymarket 功能在配置中已禁用[/red]")
+        console.print("[red]❌ Polymarket 功能在配置中已禁用[/]")
         raise typer.Exit(1)
 
     storage = Storage()
@@ -293,7 +293,7 @@ def polymarket_research_scan(
     published_ids = storage.get_all_published_condition_ids()
     filterer = PolymarketFilter(published_ids=published_ids)
 
-    console.print("[blue]🔍 正在获取 Polymarket 市场数据...[/blue]")
+    console.print("[blue]🔍 正在获取 Polymarket 市场数据...[/]")
     markets = fetcher.fetch_all_simplified()
     candidates = filterer.filter_min_volume(markets)
     candidates = filterer.exclude_published(candidates)
@@ -301,7 +301,7 @@ def polymarket_research_scan(
 
     console.print(f"\n[bold cyan]前 {min(top_n, len(candidates))} 个候选市场:[/bold cyan]\n")
     for i, market in enumerate(candidates[:top_n], 1):
-        console.print(f"[bold]{i}. {market.question}[/bold]")
+        console.print(f"[bold]{i}. {market.question}[/]")
         console.print(f"   condition_id: {market.condition_id}")
         console.print(f"   YES: {market.yes_price:.1%}, NO: {market.no_price:.1%}")
         console.print(f"   交易量: {market.volume:.0f}, 评分: {market.score():.2f}")
