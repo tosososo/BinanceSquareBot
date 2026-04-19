@@ -208,13 +208,16 @@ def clean(
 
 @app.command()
 def polymarket_research(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Only generate, don't publish"),
-    limit: int = typer.Option(None, "--limit", help="Limit number of markets to scan"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="只生成，不发布"),
+    limit: Optional[int] = typer.Option(None, "--limit", help="限制扫描市场数量"),
 ) -> None:
-    """Generate and publish Polymarket investment research tweet."""
-    from binance_square_bot.config import config
+    """生成并发布 Polymarket 投资研报推文。"""
     if not config.enable_polymarket:
-        typer.echo("Polymarket feature is disabled in config")
+        console.print("[red]❌ Polymarket 功能在配置中已禁用[/red]")
+        raise typer.Exit(1)
+
+    if not config.binance_api_keys:
+        console.print("[red]❌ 未配置BINANCE_API_KEYS[/red]")
         raise typer.Exit(1)
 
     storage = Storage()
@@ -224,62 +227,61 @@ def polymarket_research(
     generator = ResearchGenerator()
     publisher = BinancePublisher()
 
-    typer.echo("Fetching Polymarket markets...")
+    console.print("[blue]🔍 正在获取 Polymarket 市场数据...[/blue]")
     markets = fetcher.fetch_all_simplified()
-    typer.echo(f"Fetched {len(markets)} markets")
+    console.print(f"✓ 获取完成，共 {len(markets)} 个市场")
 
     best_market = filterer.select_best_market(markets)
     if best_market is None:
-        typer.echo("No eligible markets found")
+        console.print("[yellow]✨ 没有符合条件的市场[/yellow]")
         raise typer.Exit(0)
 
-    typer.echo(f"Selected market: {best_market.question}")
-    typer.echo(f"YES probability: {best_market.yes_price:.1%}, NO: {best_market.no_price:.1%}")
-    typer.echo(f"Volume: {best_market.volume:.0f} USDC")
+    console.print(f"✓ 选中市场: {best_market.question}")
+    console.print(f"  YES 概率: {best_market.yes_price:.1%}, NO: {best_market.no_price:.1%}")
+    console.print(f"  交易量: {best_market.volume:.0f} USDC")
 
-    typer.echo("\nGenerating research...")
+    console.print("\n[blue]⚙️  正在生成研报...[/blue]")
     tweet, error = generator.generate_with_retry(best_market)
     if tweet is None:
-        typer.echo(f"Generation failed after {config.max_retries} retries: {error}")
+        console.print(f"[red]❌ 生成失败，已重试 {config.max_retries} 次: {error}[/red]")
         raise typer.Exit(1)
 
-    typer.echo("\nGenerated tweet:")
-    typer.echo("-" * 60)
-    typer.echo(tweet.content)
-    typer.echo("-" * 60)
-    typer.echo(f"\nLength: {len(tweet.content)} chars")
+    console.print("\n[green]✅ 生成的推文:[/green]")
+    console.print("-" * 60)
+    console.print(tweet.content)
+    console.print("-" * 60)
+    console.print(f"\n长度: {len(tweet.content)} 字符")
 
     if dry_run:
-        typer.echo("\nDry-run mode, not publishing")
+        console.print("\n[yellow]⚠️  试运行模式，不发布[/yellow]")
         raise typer.Exit(0)
 
-    typer.echo("\nPublishing to all Binance accounts...")
+    console.print("\n[blue]📤 正在发布到所有币安账号...[/blue]")
     results = publisher.publish_tweet(tweet)
 
     success_count = sum(1 for success, _ in results if success)
     total_count = len(results)
-    typer.echo(f"Published: {success_count}/{total_count} successful")
+    console.print(f"发布结果: {success_count}/{total_count} 成功")
 
     if success_count > 0:
         storage.add_published_polymarket(best_market.condition_id, best_market.question)
-        typer.echo(f"Market marked as published in storage: {best_market.condition_id}")
+        console.print(f"[green]✅ 市场已标记为已发布: {best_market.condition_id}[/green]")
     else:
-        typer.echo("No successful publishes, not marking as published")
+        console.print("[red]❌ 没有成功发布，不标记为已发布[/red]")
         for _, msg in results:
-            typer.echo(f"  Error: {msg}")
+            console.print(f"  错误: {msg}")
         raise typer.Exit(1)
 
-    typer.echo("Done!")
+    console.print("[green]✅ 完成！[/green]")
 
 
 @app.command()
 def polymarket_scan(
-    top_n: int = typer.Option(5, "--top-n", help="Show top N candidates"),
+    top_n: int = typer.Option(5, "--top-n", help="显示前 N 个候选市场"),
 ) -> None:
-    """Scan Polymarket markets and show top candidates (don't generate or publish)."""
-    from binance_square_bot.config import config
+    """扫描 Polymarket 市场，展示热门候选（不生成不发布）。"""
     if not config.enable_polymarket:
-        typer.echo("Polymarket feature is disabled in config")
+        console.print("[red]❌ Polymarket 功能在配置中已禁用[/red]")
         raise typer.Exit(1)
 
     storage = Storage()
@@ -287,22 +289,22 @@ def polymarket_scan(
     published_ids = storage.get_all_published_condition_ids()
     filterer = PolymarketFilter(published_ids=published_ids)
 
-    typer.echo("Fetching Polymarket markets...")
+    console.print("[blue]🔍 正在获取 Polymarket 市场数据...[/blue]")
     markets = fetcher.fetch_all_simplified()
     candidates = filterer.filter_min_volume(markets)
     candidates = filterer.exclude_published(candidates)
     candidates.sort(key=lambda m: m.score(), reverse=True)
 
-    typer.echo(f"\nTop {min(top_n, len(candidates))} candidates:\n")
+    console.print(f"\n[bold cyan]前 {min(top_n, len(candidates))} 个候选市场:[/bold cyan]\n")
     for i, market in enumerate(candidates[:top_n], 1):
-        typer.echo(f"{i}. {market.question}")
-        typer.echo(f"   condition_id: {market.condition_id}")
-        typer.echo(f"   YES: {market.yes_price:.1%}, NO: {market.no_price:.1%}")
-        typer.echo(f"   Volume: {market.volume:.0f}, Score: {market.score():.2f}")
-        typer.echo(f"   Extreme: {'Yes' if market.is_probability_extreme() else 'No'}")
-        typer.echo("")
+        console.print(f"[bold]{i}. {market.question}[/bold]")
+        console.print(f"   condition_id: {market.condition_id}")
+        console.print(f"   YES: {market.yes_price:.1%}, NO: {market.no_price:.1%}")
+        console.print(f"   交易量: {market.volume:.0f}, 评分: {market.score():.2f}")
+        console.print(f"   极端概率: {'是' if market.is_probability_extreme() else '否'}")
+        console.print("")
 
-    typer.echo(f"Total candidates: {len(candidates)} / {len(markets)}")
+    console.print(f"总计候选市场: {len(candidates)} / {len(markets)}")
 
 
 if __name__ == "__main__":
