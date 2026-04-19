@@ -21,11 +21,7 @@ class PolymarketFilter:
         min_volume: float = None,
         published_ids: Optional[Set[str]] = None,
     ):
-        # Since MIN_VOLUME_THRESHOLD will be added in config later (Task 5),
-        # provide a sensible default if it doesn't exist yet
-        self.min_volume = min_volume if min_volume is not None else getattr(
-            config, 'MIN_VOLUME_THRESHOLD', 1000.0
-        )
+        self.min_volume = min_volume if min_volume is not None else config.min_volume_threshold
         self.published_ids = published_ids or set()
 
     def filter_min_volume(self, markets: List[PolymarketMarket]) -> List[PolymarketMarket]:
@@ -51,6 +47,14 @@ class PolymarketFilter:
 
         # Sort by score descending
         candidates.sort(key=lambda m: m.score(), reverse=True)
+
+        # Log top candidates for debugging
+        logger.debug("Candidate markets after filtering and scoring:")
+        for i, candidate in enumerate(candidates[:10], 1):
+            logger.debug(
+                "  %d: question='%s' condition_id=%s score=%.2f",
+                i, candidate.question, candidate.condition_id, candidate.score()
+            )
 
         best = candidates[0]
         logger.info(

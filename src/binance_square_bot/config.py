@@ -44,6 +44,7 @@ class Config(BaseSettings):
     # Polymarket API 配置
     polymarket_host: str = "https://clob.polymarket.com"
     polymarket_chain_id: int = 137  # Polygon
+    min_volume_threshold: float = 1000.0  # 最小交易量阈值
 
 
 config = Config()  # type: ignore[call-arg]

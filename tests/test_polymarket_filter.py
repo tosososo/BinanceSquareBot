@@ -9,6 +9,7 @@ from binance_square_bot.services.polymarket_filter import PolymarketFilter
 
 
 def create_test_market(question: str, condition_id: str, volume: float, created_at: int, yes_price: float) -> PolymarketMarket:
+    """Create a test PolymarketMarket instance with given parameters."""
     return PolymarketMarket(
         condition_id=condition_id,
         question=question,
@@ -22,6 +23,7 @@ def create_test_market(question: str, condition_id: str, volume: float, created_
 
 
 def test_filter_min_volume():
+    """Test that markets below minimum volume are correctly filtered out."""
     filterer = PolymarketFilter(min_volume=1000)
     market_low = create_test_market("Low vol", "0x1", 500, 1713500000, 0.5)
     market_high = create_test_market("High vol", "0x2", 5000, 1713500000, 0.5)
@@ -32,11 +34,13 @@ def test_filter_min_volume():
 
 
 def test_select_best_market():
+    """Test that the highest scoring market is correctly selected."""
     from datetime import datetime
     current_ts = int(datetime.now().timestamp())
     yesterday = current_ts - 3600 * 24
 
-    # New extreme market should be selected
+    # New extreme market should be selected (0.15 is extreme probability < 0.2 or > 0.8)
+    # Extreme probability gives higher score due to recency bias
     markets = [
         create_test_market("Old normal", "0x1", 10000, yesterday - 3600 * 48, 0.5),
         create_test_market("New extreme", "0x2", 5000, yesterday, 0.15),  # extreme + new
@@ -51,8 +55,10 @@ def test_select_best_market():
 
 
 def test_already_published_excluded():
+    """Test that already published markets are correctly excluded from selection."""
     from datetime import datetime
     current_ts = int(datetime.now().timestamp())
+    # 0.15 is extreme probability that gives higher score
     markets = [
         create_test_market("A", "0x1", 10000, current_ts, 0.15),
         create_test_market("B", "0x2", 5000, current_ts, 0.1),
@@ -62,3 +68,50 @@ def test_already_published_excluded():
     best = filterer.select_best_market(markets)
     assert best is not None
     assert best.condition_id == "0x2"
+
+
+def test_select_best_market_empty_input():
+    """Test that None is returned when input is an empty list."""
+    filterer = PolymarketFilter(min_volume=1000)
+    best = filterer.select_best_market([])
+    assert best is None
+
+
+def test_select_best_market_all_below_min_volume():
+    """Test that None is returned when all markets have volume below minimum threshold."""
+    from datetime import datetime
+    current_ts = int(datetime.now().timestamp())
+    # All markets below 1000 min volume
+    markets = [
+        create_test_market("Low 1", "0x1", 100, current_ts, 0.5),
+        create_test_market("Low 2", "0x2", 500, current_ts, 0.15),
+        create_test_market("Low 3", "0x3", 999, current_ts, 0.85),
+    ]
+
+    filterer = PolymarketFilter(min_volume=1000)
+    best = filterer.select_best_market(markets)
+    assert best is None
+
+
+def test_filter_min_volume_volume_none():
+    """Test that markets with None volume are correctly filtered out."""
+    from datetime import datetime
+    current_ts = int(datetime.now().timestamp())
+    # Create a market with None volume (treats as 0)
+    market_none = PolymarketMarket(
+        condition_id="0x1",
+        question="No volume",
+        tokens=[
+            TokenInfo(token_id="t1", outcome="YES", price=0.5),
+            TokenInfo(token_id="t2", outcome="NO", price=0.5),
+        ],
+        volume=None,
+        created_at=current_ts,
+    )
+    market_valid = create_test_market("Has volume", "0x2", 2000, current_ts, 0.5)
+
+    filterer = PolymarketFilter(min_volume=1000)
+    filtered = filterer.filter_min_volume([market_none, market_valid])
+    # None volume market should be filtered out, only valid remains
+    assert len(filtered) == 1
+    assert filtered[0].condition_id == "0x2"
