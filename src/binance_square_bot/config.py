@@ -42,6 +42,7 @@ class Config(BaseSettings):
     max_concurrent_accounts: int = 3  # 最大并发账号数
 
     # Polymarket API 配置
+    enable_polymarket: bool = True  # 是否启用 Polymarket 投资研报功能
     polymarket_host: str = "https://clob.polymarket.com"
     polymarket_chain_id: int = 137  # Polygon
     min_volume_threshold: float = 1000.0  # 最小交易量阈值
