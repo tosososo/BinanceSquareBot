@@ -6,6 +6,7 @@ from loguru import logger
 from rich.console import Console
 from rich.table import Table
 
+from binance_square_bot.services.target.binance_target import mask_api_key
 
 console = Console()
 
@@ -185,8 +186,7 @@ class SourceParallelPublisher:
                     api_key,
                     target.config.daily_max_posts_per_key,
                 ):
-                    from binance_square_bot.models.daily_publish_stats import DailyPublishStatsModel
-                    key_mask = DailyPublishStatsModel.mask_key(api_key)
+                    key_mask = mask_api_key(api_key)
                     console.print(f"[yellow]⚠️ Daily limit reached for key {key_mask}, skipping[/yellow]")
                     continue
 

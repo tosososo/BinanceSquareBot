@@ -5,6 +5,13 @@ from typing import Tuple
 from binance_square_bot.services.base import BaseTarget
 
 
+def mask_api_key(api_key: str) -> str:
+    """Mask API key for logging - show first 8 chars and last 4 chars."""
+    if len(api_key) <= 12:
+        return f"{api_key[:4]}...{api_key[-2:]}" if len(api_key) > 6 else "***"
+    return f"{api_key[:8]}...{api_key[-4:]}"
+
+
 class BinanceTarget(BaseTarget):
     """Binance Square publishing target with multi-API key support."""
 
@@ -19,11 +26,10 @@ class BinanceTarget(BaseTarget):
         super().__init__()
         self.client = httpx.Client(timeout=30.0)
         self.stop_words = set(self.config.stop_words)
-    
+
     def is_contains_stop_words(self, content: str) -> bool:
         """Check if content contains any stop words. Case-insensitive."""
         return any(word.lower() in content.lower() for word in self.stop_words)
-
 
     def publish(self, content: str, api_key: str) -> Tuple[bool, str]:
         """Publish content using a specific API key.
@@ -35,9 +41,12 @@ class BinanceTarget(BaseTarget):
         Returns:
             Tuple of (success: bool, error_message: str)
         """
+        key_mask = mask_api_key(api_key)
+
         if self.is_contains_stop_words(content):
-            logger.info(f"Content '{content[:50]}' contains stop words, skipping publish")
+            logger.info(f"[API:{key_mask}] ⏭️ Skipped - contains stop words: {content[:40]}...")
             return False, "Content contains stop words"
+
         headers = {
             "X-Square-OpenAPI-Key": api_key,
             "Content-Type": "application/json",
@@ -49,7 +58,7 @@ class BinanceTarget(BaseTarget):
         }
 
         try:
-            logger.debug(f"Publishing to Binance Square: {content[:50]}...")
+            logger.debug(f"[API:{key_mask}] 📤 Publishing: {content[:50]}...")
             response = self.client.post(
                 self.config.api_url,
                 headers=headers,
@@ -63,15 +72,15 @@ class BinanceTarget(BaseTarget):
 
             # 000000 or 0 means success
             if code == "000000" or code == 0:
-                logger.info("Successfully published to Binance Square")
+                logger.success(f"[API:{key_mask}] ✅ Published: {content[:40]}...")
                 return True, ""
             else:
-                logger.warning(f"Binance Square API error: {code} - {message}")
+                logger.warning(f"[API:{key_mask}] ❌ API error {code}: {message}")
                 return False, message or f"API error code: {code}"
 
         except httpx.HTTPError as e:
-            logger.error(f"HTTP error publishing to Binance: {str(e)}")
+            logger.error(f"[API:{key_mask}] ❌ HTTP error: {str(e)}")
             return False, f"HTTP error: {str(e)}"
         except Exception as e:
-            logger.error(f"Unexpected error publishing to Binance: {str(e)}")
+            logger.error(f"[API:{key_mask}] ❌ Unexpected error: {str(e)}")
             return False, f"Unexpected error: {str(e)}"

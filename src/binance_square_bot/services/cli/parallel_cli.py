@@ -20,6 +20,9 @@ class ParallelCliService:
         dry_run: bool = False,
         max_workers: int = 4,
         enable_fn: bool = True,
+        enable_fn_calendar: bool = True,
+        enable_fn_airdrop: bool = True,
+        enable_fn_fundraising: bool = True,
         enable_polymarket: bool = False,
         enable_followin_topics: bool = True,
         enable_followin_io_flow: bool = True,
@@ -28,6 +31,9 @@ class ParallelCliService:
         self.dry_run = dry_run
         self.max_workers = max_workers
         self.enable_fn = enable_fn
+        self.enable_fn_calendar = enable_fn_calendar
+        self.enable_fn_airdrop = enable_fn_airdrop
+        self.enable_fn_fundraising = enable_fn_fundraising
         self.enable_polymarket = enable_polymarket
         self.enable_followin_topics = enable_followin_topics
         self.enable_followin_io_flow = enable_followin_io_flow
@@ -40,13 +46,37 @@ class ParallelCliService:
 
         source_configs: List[Dict[str, Any]] = []
 
-        # FnSource
+        # FnSource - News
         if self.enable_fn:
             source_configs.append({
                 "source": FnSource(),
                 "execute": "execute",
             })
-            console.print("[blue]✅ FnSource enabled[/blue]")
+            console.print("[blue]✅ FnSource (news) enabled[/blue]")
+
+        # FnSource - Calendar
+        if self.enable_fn_calendar:
+            source_configs.append({
+                "source": FnSource(),
+                "execute": "execute_calendar",
+            })
+            console.print("[blue]✅ FnSource (calendar) enabled[/blue]")
+
+        # FnSource - Airdrop
+        if self.enable_fn_airdrop:
+            source_configs.append({
+                "source": FnSource(),
+                "execute": "execute_airdrops",
+            })
+            console.print("[blue]✅ FnSource (airdrop) enabled[/blue]")
+
+        # FnSource - Fundraising
+        if self.enable_fn_fundraising:
+            source_configs.append({
+                "source": FnSource(),
+                "execute": "execute_fundraising",
+            })
+            console.print("[blue]✅ FnSource (fundraising) enabled[/blue]")
 
         # PolymarketSource
         if self.enable_polymarket:

@@ -59,7 +59,9 @@ jobs:
           FOLLOWIN_SOURCE_ENABLED: true
           FOLLOWIN_SOURCE_DAILY_MAX_EXECUTIONS: 24
         run: |
-          poetry run binance-square-bot parallel --workers 4
+          # 默认启用: Fn news, calendar, airdrop, fundraising + Followin all
+          # 可选启用: Polymarket
+          poetry run binance-square-bot parallel --workers 8
 
       - name: Commit and push if changes
         env:
@@ -76,7 +78,7 @@ jobs:
 
           git stash pop || echo "Nothing to pop"
 
-          git add data/processed_urls.db
+          git add data/app.db
 
           if git diff --quiet && git diff --staged --quiet; then
             echo "📭 No changes to commit"
@@ -85,7 +87,7 @@ jobs:
 
           echo "📝 Committing changes..."
           TIMESTAMP=$(TZ=Asia/Shanghai date "+%Y-%m-%d %H:%M:%S")
-          git commit -m "Auto update processed_urls.db by BinanceSquareBot (parallel) at $TIMESTAMP"
+          git commit -m "Auto update app.db by BinanceSquareBot (parallel) at $TIMESTAMP"
 
           echo "⬆️ Pushing changes..."
           for i in {1..5}; do

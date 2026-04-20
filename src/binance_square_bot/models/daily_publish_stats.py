@@ -24,7 +24,9 @@ class DailyPublishStatsModel(Base):
 
     @classmethod
     def mask_key(cls, api_key: str) -> str:
-        """Mask API key for display - shows first 4 and last 4 chars."""
-        if len(api_key) <= 8:
-            return api_key
-        return f"{api_key[:4]}...{api_key[-4:]}"
+        """Mask API key for display - shows first 8 and last 4 chars.
+
+        Kept for backward compatibility. Use mask_api_key from binance_target instead.
+        """
+        from binance_square_bot.services.target.binance_target import mask_api_key
+        return mask_api_key(api_key)
